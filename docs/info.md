@@ -24,9 +24,13 @@ Load the design in Tiny Tapeout / VGA Playground and connect the VGA output.
 Controls:
 
 ui[4] — move left
+
 ui[5] — move right
+
 ui[0] — move up
+
 ui[1] — move down
+
 ui[2] — restart game
 
 Gameplay:
