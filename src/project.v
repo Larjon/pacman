@@ -56,8 +56,6 @@ module tt_um_vga_example(
 
   // ============================================================
   // Board layout
-  // 16x16 tiles, each tile 16x16 pixels
-  // board occupies 256x256 pixels
   // ============================================================
   localparam [9:0] BOARD_X = 10'd192;
   localparam [9:0] BOARD_Y = 10'd112;
@@ -67,7 +65,7 @@ module tt_um_vga_example(
   // ============================================================
   reg [3:0] pac_x;
   reg [3:0] pac_y;
-  reg [1:0] pac_dir;      // 0=left,1=right,2=up,3=down
+  reg [1:0] pac_dir;
   reg [1:0] want_dir;
   reg [2:0] move_div;
   reg [7:0] score;
@@ -80,7 +78,6 @@ module tt_um_vga_example(
   reg game_over;
   reg win;
 
-  // dots: 16 rows, each row has 16 bits
   reg [15:0] dots_row0;
   reg [15:0] dots_row1;
   reg [15:0] dots_row2;
@@ -100,7 +97,6 @@ module tt_um_vga_example(
 
   // ============================================================
   // Wall map
-  // 1 = wall
   // ============================================================
   function wall_at;
     input [3:0] tx;
@@ -160,7 +156,7 @@ module tt_um_vga_example(
         4'd14: wall_at = (tx == 4'd0)  || (tx == 4'd15) ||
                           (tx == 4'd4)  || (tx == 4'd5)  || (tx == 4'd10) || (tx == 4'd11);
 
-        default: wall_at = 1'b1; // row 15 = full wall
+        default: wall_at = 1'b1;
       endcase
     end
   endfunction
@@ -194,7 +190,7 @@ module tt_um_vga_example(
   endfunction
 
   // ============================================================
-  // Pac-Man movement target helpers
+  // Pac-Man movement helpers
   // ============================================================
   reg [3:0] try_x;
   reg [3:0] try_y;
@@ -239,9 +235,6 @@ module tt_um_vga_example(
   // ============================================================
   // Ghost movement helpers
   // ============================================================
-  reg [3:0] ghost_nx;
-  reg [3:0] ghost_ny;
-
   reg [3:0] g_left_x,  g_left_y;
   reg [3:0] g_right_x, g_right_y;
   reg [3:0] g_up_x,    g_up_y;
@@ -252,23 +245,15 @@ module tt_um_vga_example(
   wire g_up_ok;
   wire g_down_ok;
 
-  always @(*) begin
-    ghost_nx = ghost_x;
-    ghost_ny = ghost_y;
-
-    case (ghost_dir)
-      2'd0: if (ghost_x != 4'd0)  ghost_nx = ghost_x - 4'd1;
-      2'd1: if (ghost_x != 4'd15) ghost_nx = ghost_x + 4'd1;
-      2'd2: if (ghost_y != 4'd0)  ghost_ny = ghost_y - 4'd1;
-      default: if (ghost_y != 4'd15) ghost_ny = ghost_y + 4'd1;
-    endcase
-  end
+  reg [1:0] ghost_pref0, ghost_pref1, ghost_pref2, ghost_pref3;
+  reg [3:0] ghost_next_x, ghost_next_y;
+  reg [1:0] ghost_next_dir;
 
   always @(*) begin
-    g_left_x = ghost_x;  g_left_y = ghost_y;
+    g_left_x  = ghost_x; g_left_y  = ghost_y;
     g_right_x = ghost_x; g_right_y = ghost_y;
-    g_up_x = ghost_x;    g_up_y = ghost_y;
-    g_down_x = ghost_x;  g_down_y = ghost_y;
+    g_up_x    = ghost_x; g_up_y    = ghost_y;
+    g_down_x  = ghost_x; g_down_y  = ghost_y;
 
     if (ghost_x != 4'd0)  g_left_x  = ghost_x - 4'd1;
     if (ghost_x != 4'd15) g_right_x = ghost_x + 4'd1;
@@ -281,7 +266,80 @@ module tt_um_vga_example(
   assign g_up_ok    = !wall_at(g_up_x,    g_up_y);
   assign g_down_ok  = !wall_at(g_down_x,  g_down_y);
 
-  wire ghost_step_ok = !wall_at(ghost_nx, ghost_ny);
+  // Proste AI:
+  // wybierz najpierw oś, w której Pac-Man jest dalej
+  always @(*) begin
+    if ((pac_x > ghost_x ? (pac_x - ghost_x) : (ghost_x - pac_x)) >=
+        (pac_y > ghost_y ? (pac_y - ghost_y) : (ghost_y - pac_y))) begin
+
+      // priorytet poziomy
+      if (pac_x > ghost_x) begin
+        ghost_pref0 = 2'd1; // right
+        ghost_pref1 = (pac_y > ghost_y) ? 2'd3 : 2'd2; // down/up
+        ghost_pref2 = (pac_y > ghost_y) ? 2'd2 : 2'd3; // up/down
+        ghost_pref3 = 2'd0; // left
+      end else begin
+        ghost_pref0 = 2'd0; // left
+        ghost_pref1 = (pac_y > ghost_y) ? 2'd3 : 2'd2;
+        ghost_pref2 = (pac_y > ghost_y) ? 2'd2 : 2'd3;
+        ghost_pref3 = 2'd1; // right
+      end
+
+    end else begin
+      // priorytet pionowy
+      if (pac_y > ghost_y) begin
+        ghost_pref0 = 2'd3; // down
+        ghost_pref1 = (pac_x > ghost_x) ? 2'd1 : 2'd0; // right/left
+        ghost_pref2 = (pac_x > ghost_x) ? 2'd0 : 2'd1; // left/right
+        ghost_pref3 = 2'd2; // up
+      end else begin
+        ghost_pref0 = 2'd2; // up
+        ghost_pref1 = (pac_x > ghost_x) ? 2'd1 : 2'd0;
+        ghost_pref2 = (pac_x > ghost_x) ? 2'd0 : 2'd1;
+        ghost_pref3 = 2'd3; // down
+      end
+    end
+  end
+
+  always @(*) begin
+    ghost_next_dir = ghost_dir;
+    ghost_next_x   = ghost_x;
+    ghost_next_y   = ghost_y;
+
+    case (ghost_pref0)
+      2'd0: if (g_left_ok)  begin ghost_next_dir = 2'd0; ghost_next_x = g_left_x;  ghost_next_y = g_left_y;  end
+      2'd1: if (g_right_ok) begin ghost_next_dir = 2'd1; ghost_next_x = g_right_x; ghost_next_y = g_right_y; end
+      2'd2: if (g_up_ok)    begin ghost_next_dir = 2'd2; ghost_next_x = g_up_x;    ghost_next_y = g_up_y;    end
+      2'd3: if (g_down_ok)  begin ghost_next_dir = 2'd3; ghost_next_x = g_down_x;  ghost_next_y = g_down_y;  end
+    endcase
+
+    if ((ghost_next_x == ghost_x) && (ghost_next_y == ghost_y)) begin
+      case (ghost_pref1)
+        2'd0: if (g_left_ok)  begin ghost_next_dir = 2'd0; ghost_next_x = g_left_x;  ghost_next_y = g_left_y;  end
+        2'd1: if (g_right_ok) begin ghost_next_dir = 2'd1; ghost_next_x = g_right_x; ghost_next_y = g_right_y; end
+        2'd2: if (g_up_ok)    begin ghost_next_dir = 2'd2; ghost_next_x = g_up_x;    ghost_next_y = g_up_y;    end
+        2'd3: if (g_down_ok)  begin ghost_next_dir = 2'd3; ghost_next_x = g_down_x;  ghost_next_y = g_down_y;  end
+      endcase
+    end
+
+    if ((ghost_next_x == ghost_x) && (ghost_next_y == ghost_y)) begin
+      case (ghost_pref2)
+        2'd0: if (g_left_ok)  begin ghost_next_dir = 2'd0; ghost_next_x = g_left_x;  ghost_next_y = g_left_y;  end
+        2'd1: if (g_right_ok) begin ghost_next_dir = 2'd1; ghost_next_x = g_right_x; ghost_next_y = g_right_y; end
+        2'd2: if (g_up_ok)    begin ghost_next_dir = 2'd2; ghost_next_x = g_up_x;    ghost_next_y = g_up_y;    end
+        2'd3: if (g_down_ok)  begin ghost_next_dir = 2'd3; ghost_next_x = g_down_x;  ghost_next_y = g_down_y;  end
+      endcase
+    end
+
+    if ((ghost_next_x == ghost_x) && (ghost_next_y == ghost_y)) begin
+      case (ghost_pref3)
+        2'd0: if (g_left_ok)  begin ghost_next_dir = 2'd0; ghost_next_x = g_left_x;  ghost_next_y = g_left_y;  end
+        2'd1: if (g_right_ok) begin ghost_next_dir = 2'd1; ghost_next_x = g_right_x; ghost_next_y = g_right_y; end
+        2'd2: if (g_up_ok)    begin ghost_next_dir = 2'd2; ghost_next_x = g_up_x;    ghost_next_y = g_up_y;    end
+        2'd3: if (g_down_ok)  begin ghost_next_dir = 2'd3; ghost_next_x = g_down_x;  ghost_next_y = g_down_y;  end
+      endcase
+    end
+  end
 
   // ============================================================
   // Any dots left?
@@ -298,7 +356,7 @@ module tt_um_vga_example(
   wire hit_ghost = (pac_x == ghost_x) && (pac_y == ghost_y);
 
   // ============================================================
-  // Reset task-like repeated assignments done inline
+  // Main game logic
   // ============================================================
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -332,8 +390,8 @@ module tt_um_vga_example(
       dots_row13 <= 16'h90E9;
       dots_row14 <= 16'hF7DE;
       dots_row15 <= 16'h0000;
-    end else if (frame_tick) begin
 
+    end else if (frame_tick) begin
       if (btn_restart) begin
         pac_x    <= 4'd1;
         pac_y    <= 4'd1;
@@ -369,21 +427,14 @@ module tt_um_vga_example(
         move_div  <= move_div + 3'd1;
         ghost_div <= ghost_div + 3'd1;
 
-        // stop gameplay after win / lose
         if (!game_over && !win) begin
-
-          // collision before movement
           if (hit_ghost) begin
             game_over <= 1'b1;
           end else begin
 
-            // -------------------------
-            // Pac-Man movement
-            // -------------------------
             if (want_ok)
               pac_dir <= want_dir;
 
-            // move every 4 frames
             if (move_div == 3'd0) begin
               if (want_ok) begin
                 pac_x <= try_x;
@@ -394,152 +445,43 @@ module tt_um_vga_example(
               end
             end
 
-            // -------------------------
-            // Ghost movement
-            // -------------------------
-            // move a bit slower than pacman
+            // nowy ruch ducha
             if (ghost_div == 3'd0) begin
-              if (ghost_step_ok) begin
-                ghost_x <= ghost_nx;
-                ghost_y <= ghost_ny;
-              end else begin
-                // fixed cheap priority: left, up, right, down
-                if (g_left_ok) begin
-                  ghost_dir <= 2'd0;
-                  ghost_x   <= g_left_x;
-                  ghost_y   <= g_left_y;
-                end else if (g_up_ok) begin
-                  ghost_dir <= 2'd2;
-                  ghost_x   <= g_up_x;
-                  ghost_y   <= g_up_y;
-                end else if (g_right_ok) begin
-                  ghost_dir <= 2'd1;
-                  ghost_x   <= g_right_x;
-                  ghost_y   <= g_right_y;
-                end else if (g_down_ok) begin
-                  ghost_dir <= 2'd3;
-                  ghost_x   <= g_down_x;
-                  ghost_y   <= g_down_y;
-                end
-              end
+              ghost_dir <= ghost_next_dir;
+              ghost_x   <= ghost_next_x;
+              ghost_y   <= ghost_next_y;
             end
 
-            // -------------------------
-            // Eat dot at current tile
-            // -------------------------
             if (move_div == 3'd0) begin
               case (pac_y)
-                4'd0: begin
-                  if (dots_row0[pac_x]) begin
-                    dots_row0[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd1: begin
-                  if (dots_row1[pac_x]) begin
-                    dots_row1[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd2: begin
-                  if (dots_row2[pac_x]) begin
-                    dots_row2[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd3: begin
-                  if (dots_row3[pac_x]) begin
-                    dots_row3[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd4: begin
-                  if (dots_row4[pac_x]) begin
-                    dots_row4[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd5: begin
-                  if (dots_row5[pac_x]) begin
-                    dots_row5[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd6: begin
-                  if (dots_row6[pac_x]) begin
-                    dots_row6[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd7: begin
-                  if (dots_row7[pac_x]) begin
-                    dots_row7[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd8: begin
-                  if (dots_row8[pac_x]) begin
-                    dots_row8[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd9: begin
-                  if (dots_row9[pac_x]) begin
-                    dots_row9[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd10: begin
-                  if (dots_row10[pac_x]) begin
-                    dots_row10[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd11: begin
-                  if (dots_row11[pac_x]) begin
-                    dots_row11[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd12: begin
-                  if (dots_row12[pac_x]) begin
-                    dots_row12[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd13: begin
-                  if (dots_row13[pac_x]) begin
-                    dots_row13[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                4'd14: begin
-                  if (dots_row14[pac_x]) begin
-                    dots_row14[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
-                default: begin
-                  if (dots_row15[pac_x]) begin
-                    dots_row15[pac_x] <= 1'b0;
-                    score <= score + 8'd1;
-                  end
-                end
+                4'd0:  if (dots_row0[pac_x])  begin dots_row0[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd1:  if (dots_row1[pac_x])  begin dots_row1[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd2:  if (dots_row2[pac_x])  begin dots_row2[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd3:  if (dots_row3[pac_x])  begin dots_row3[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd4:  if (dots_row4[pac_x])  begin dots_row4[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd5:  if (dots_row5[pac_x])  begin dots_row5[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd6:  if (dots_row6[pac_x])  begin dots_row6[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd7:  if (dots_row7[pac_x])  begin dots_row7[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd8:  if (dots_row8[pac_x])  begin dots_row8[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd9:  if (dots_row9[pac_x])  begin dots_row9[pac_x]  <= 1'b0; score <= score + 8'd1; end
+                4'd10: if (dots_row10[pac_x]) begin dots_row10[pac_x] <= 1'b0; score <= score + 8'd1; end
+                4'd11: if (dots_row11[pac_x]) begin dots_row11[pac_x] <= 1'b0; score <= score + 8'd1; end
+                4'd12: if (dots_row12[pac_x]) begin dots_row12[pac_x] <= 1'b0; score <= score + 8'd1; end
+                4'd13: if (dots_row13[pac_x]) begin dots_row13[pac_x] <= 1'b0; score <= score + 8'd1; end
+                4'd14: if (dots_row14[pac_x]) begin dots_row14[pac_x] <= 1'b0; score <= score + 8'd1; end
+                default: if (dots_row15[pac_x]) begin dots_row15[pac_x] <= 1'b0; score <= score + 8'd1; end
               endcase
             end
 
-            // collision after movement
             if (((move_div == 3'd0) &&
                  (((want_ok ? try_x : (step_ok ? step_x : pac_x)) == ghost_x) &&
                   ((want_ok ? try_y : (step_ok ? step_y : pac_y)) == ghost_y))) ||
                 ((ghost_div == 3'd0) &&
-                 (pac_x == (ghost_step_ok ? ghost_nx : ghost_x)) &&
-                 (pac_y == (ghost_step_ok ? ghost_ny : ghost_y)))) begin
+                 ((pac_x == ghost_next_x) && (pac_y == ghost_next_y)))) begin
               game_over <= 1'b1;
             end else if (!any_dots) begin
               win <= 1'b1;
             end
-
           end
         end
       end
@@ -633,12 +575,8 @@ module tt_um_vga_example(
   wire floor_on = board_area && !tile_wall;
 
   // ============================================================
-  // Score / overlays
+  // Overlays
   // ============================================================
-  wire score_bar =
-    (pix_y >= 10'd40) && (pix_y < 10'd56) &&
-    (pix_x >= 10'd120) && (pix_x < (10'd120 + {2'b00, score, 2'b00}));
-
   wire game_over_bar =
     (pix_y >= 10'd220) && (pix_y < 10'd260) &&
     (pix_x >= 10'd180) && (pix_x < 10'd460);
@@ -656,7 +594,6 @@ module tt_um_vga_example(
     B = 2'b00;
 
     if (video_active) begin
-      // background
       R = 2'b00; G = 2'b00; B = 2'b00;
 
       if (floor_on) begin
@@ -685,10 +622,6 @@ module tt_um_vga_example(
 
       if (ghost_eye_l || ghost_eye_r) begin
         R = 2'b11; G = 2'b11; B = 2'b11;
-      end
-
-      if (score_bar) begin
-        R = 2'b11; G = 2'b11; B = 2'b00;
       end
 
       if (game_over && game_over_bar) begin
