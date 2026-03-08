@@ -413,8 +413,8 @@ module tt_um_vga_example(
 
   reg [3:0] tile_x;
   reg [3:0] tile_y;
-  reg [4:0] cell_x;
-  reg [4:0] cell_y;
+  reg [9:0] cell_x;
+  reg [9:0] cell_y;
 
   always @(*) begin
     if (rel_x < 10'd25) begin
