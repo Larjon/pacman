@@ -3,7 +3,7 @@ project:
   title:        "Pac-Man_VGA_Game"
   author:       "Lukasz Kowalka"
   discord:      "lukaszkowalka"
-  description:  "A_simple_Pac-Man-style_VGA_game_in pure_Verilog_for_Tiny_Tapeout"
+  description:  "A_simple_Pac-Man-style_VGA_game_in_pure_Verilog_for_Tiny_Tapeout"
   language:     "Verilog"
   clock_hz:     25175000       # Clock frequency in Hz (or 0 if not applicable)
 
