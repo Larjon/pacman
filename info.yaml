@@ -1,9 +1,9 @@
 # Tiny Tapeout project information
 project:
-  title:        "Pac-Man VGA Game"
+  title:        "Pac-Man_VGA_Game"
   author:       "Lukasz Kowalka"
   discord:      "lukaszkowalka"
-  description:  "A simple Pac-Man-style VGA game in pure Verilog for Tiny Tapeout."
+  description:  "A_simple_Pac-Man-style_VGA_game_in pure_Verilog_for_Tiny_Tapeout."
   language:     "Verilog"
   clock_hz:     25175000       # Clock frequency in Hz (or 0 if not applicable)
 
