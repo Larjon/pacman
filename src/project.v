@@ -56,48 +56,53 @@ module tt_um_vga_example(
 
   // ============================================================
   // Board layout
-  // 8x8 tiles, each tile 32x32 pixels => 256x256 total
+  // 10x10 tiles, each tile 25x25 pixels => 250x250 total
+  // Centered similarly to the 8x8 version
   // ============================================================
-  localparam [9:0] BOARD_X = 10'd192;
-  localparam [9:0] BOARD_Y = 10'd112;
+  localparam [9:0] BOARD_X = 10'd195;
+  localparam [9:0] BOARD_Y = 10'd115;
+  localparam [9:0] BOARD_W = 10'd250;
+  localparam [9:0] BOARD_H = 10'd250;
 
   // ============================================================
   // Game state
   // ============================================================
-  reg [2:0] pac_x;
-  reg [2:0] pac_y;
+  reg [3:0] pac_x;
+  reg [3:0] pac_y;
   reg [1:0] pac_dir;
   reg [1:0] want_dir;
   reg [2:0] move_div;
 
-  reg [2:0] ghost_x;
-  reg [2:0] ghost_y;
+  reg [3:0] ghost_x;
+  reg [3:0] ghost_y;
   reg [1:0] ghost_dir;
   reg [2:0] ghost_div;
 
   reg game_over;
   reg win;
 
-  reg [7:0] dots [0:7];
+  reg [9:0] dots [0:9];
 
   // ============================================================
   // Wall map
   // 1 = wall
   // ============================================================
   function wall_at;
-    input [2:0] tx;
-    input [2:0] ty;
-    reg [7:0] row;
+    input [3:0] tx;
+    input [3:0] ty;
+    reg [9:0] row;
     begin
       case (ty)
-        3'd0: row = 8'b11111111;
-        3'd1: row = 8'b10011001;
-        3'd2: row = 8'b10100101;
-        3'd3: row = 8'b10000001;
-        3'd4: row = 8'b10111101;
-        3'd5: row = 8'b10000001;
-        3'd6: row = 8'b10011001;
-        default: row = 8'b11111111;
+        4'd0: row = 10'b1111111111;
+        4'd1: row = 10'b1001001001;
+        4'd2: row = 10'b1010110101;
+        4'd3: row = 10'b1000000001;
+        4'd4: row = 10'b1011111101;
+        4'd5: row = 10'b1000000001;
+        4'd6: row = 10'b1010110101;
+        4'd7: row = 10'b1001001001;
+        4'd8: row = 10'b1000000001;
+        default: row = 10'b1111111111;
       endcase
       wall_at = row[tx];
     end
@@ -107,8 +112,8 @@ module tt_um_vga_example(
   // Dot read helper
   // ============================================================
   function dot_at;
-    input [2:0] tx;
-    input [2:0] ty;
+    input [3:0] tx;
+    input [3:0] ty;
     begin
       dot_at = dots[ty][tx];
     end
@@ -117,10 +122,10 @@ module tt_um_vga_example(
   // ============================================================
   // Pac-Man movement helpers
   // ============================================================
-  reg [2:0] try_x;
-  reg [2:0] try_y;
-  reg [2:0] step_x;
-  reg [2:0] step_y;
+  reg [3:0] try_x;
+  reg [3:0] try_y;
+  reg [3:0] step_x;
+  reg [3:0] step_y;
 
   always @(*) begin
     if (btn_left)       want_dir = 2'd0;
@@ -135,10 +140,10 @@ module tt_um_vga_example(
     try_y = pac_y;
 
     case (want_dir)
-      2'd0: if (pac_x != 3'd0) try_x = pac_x - 3'd1;
-      2'd1: if (pac_x != 3'd7) try_x = pac_x + 3'd1;
-      2'd2: if (pac_y != 3'd0) try_y = pac_y - 3'd1;
-      default: if (pac_y != 3'd7) try_y = pac_y + 3'd1;
+      2'd0: if (pac_x != 4'd0) try_x = pac_x - 4'd1;
+      2'd1: if (pac_x != 4'd9) try_x = pac_x + 4'd1;
+      2'd2: if (pac_y != 4'd0) try_y = pac_y - 4'd1;
+      default: if (pac_y != 4'd9) try_y = pac_y + 4'd1;
     endcase
   end
 
@@ -147,29 +152,29 @@ module tt_um_vga_example(
     step_y = pac_y;
 
     case (pac_dir)
-      2'd0: if (pac_x != 3'd0) step_x = pac_x - 3'd1;
-      2'd1: if (pac_x != 3'd7) step_x = pac_x + 3'd1;
-      2'd2: if (pac_y != 3'd0) step_y = pac_y - 3'd1;
-      default: if (pac_y != 3'd7) step_y = pac_y + 3'd1;
+      2'd0: if (pac_x != 4'd0) step_x = pac_x - 4'd1;
+      2'd1: if (pac_x != 4'd9) step_x = pac_x + 4'd1;
+      2'd2: if (pac_y != 4'd0) step_y = pac_y - 4'd1;
+      default: if (pac_y != 4'd9) step_y = pac_y + 4'd1;
     endcase
   end
 
   wire want_ok = !wall_at(try_x, try_y);
   wire step_ok = !wall_at(step_x, step_y);
 
-  wire [2:0] pac_next_x = want_ok ? try_x : (step_ok ? step_x : pac_x);
-  wire [2:0] pac_next_y = want_ok ? try_y : (step_ok ? step_y : pac_y);
+  wire [3:0] pac_next_x = want_ok ? try_x : (step_ok ? step_x : pac_x);
+  wire [3:0] pac_next_y = want_ok ? try_y : (step_ok ? step_y : pac_y);
 
   // ============================================================
   // Ghost movement helpers - cheap version
   // ============================================================
-  reg [2:0] ghost_nx;
-  reg [2:0] ghost_ny;
+  reg [3:0] ghost_nx;
+  reg [3:0] ghost_ny;
 
-  reg [2:0] g_left_x,  g_left_y;
-  reg [2:0] g_right_x, g_right_y;
-  reg [2:0] g_up_x,    g_up_y;
-  reg [2:0] g_down_x,  g_down_y;
+  reg [3:0] g_left_x,  g_left_y;
+  reg [3:0] g_right_x, g_right_y;
+  reg [3:0] g_up_x,    g_up_y;
+  reg [3:0] g_down_x,  g_down_y;
 
   wire g_left_ok;
   wire g_right_ok;
@@ -177,8 +182,8 @@ module tt_um_vga_example(
   wire g_down_ok;
   wire ghost_step_ok;
 
-  reg [2:0] ghost_next_x;
-  reg [2:0] ghost_next_y;
+  reg [3:0] ghost_next_x;
+  reg [3:0] ghost_next_y;
   reg [1:0] ghost_next_dir;
 
   always @(*) begin
@@ -186,10 +191,10 @@ module tt_um_vga_example(
     ghost_ny = ghost_y;
 
     case (ghost_dir)
-      2'd0: if (ghost_x != 3'd0) ghost_nx = ghost_x - 3'd1;
-      2'd1: if (ghost_x != 3'd7) ghost_nx = ghost_x + 3'd1;
-      2'd2: if (ghost_y != 3'd0) ghost_ny = ghost_y - 3'd1;
-      default: if (ghost_y != 3'd7) ghost_ny = ghost_y + 3'd1;
+      2'd0: if (ghost_x != 4'd0) ghost_nx = ghost_x - 4'd1;
+      2'd1: if (ghost_x != 4'd9) ghost_nx = ghost_x + 4'd1;
+      2'd2: if (ghost_y != 4'd0) ghost_ny = ghost_y - 4'd1;
+      default: if (ghost_y != 4'd9) ghost_ny = ghost_y + 4'd1;
     endcase
   end
 
@@ -199,10 +204,10 @@ module tt_um_vga_example(
     g_up_x    = ghost_x; g_up_y    = ghost_y;
     g_down_x  = ghost_x; g_down_y  = ghost_y;
 
-    if (ghost_x != 3'd0) g_left_x  = ghost_x - 3'd1;
-    if (ghost_x != 3'd7) g_right_x = ghost_x + 3'd1;
-    if (ghost_y != 3'd0) g_up_y    = ghost_y - 3'd1;
-    if (ghost_y != 3'd7) g_down_y  = ghost_y + 3'd1;
+    if (ghost_x != 4'd0) g_left_x  = ghost_x - 4'd1;
+    if (ghost_x != 4'd9) g_right_x = ghost_x + 4'd1;
+    if (ghost_y != 4'd0) g_up_y    = ghost_y - 4'd1;
+    if (ghost_y != 4'd9) g_down_y  = ghost_y + 4'd1;
   end
 
   assign g_left_ok     = !wall_at(g_left_x,  g_left_y);
@@ -292,8 +297,8 @@ module tt_um_vga_example(
   // Any dots left?
   // ============================================================
   wire any_dots =
-    (|dots[0]) || (|dots[1]) || (|dots[2]) || (|dots[3]) ||
-    (|dots[4]) || (|dots[5]) || (|dots[6]) || (|dots[7]);
+    (|dots[0]) || (|dots[1]) || (|dots[2]) || (|dots[3]) || (|dots[4]) ||
+    (|dots[5]) || (|dots[6]) || (|dots[7]) || (|dots[8]) || (|dots[9]);
 
   // ============================================================
   // Collision
@@ -305,51 +310,55 @@ module tt_um_vga_example(
   // ============================================================
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      pac_x    <= 3'd1;
-      pac_y    <= 3'd1;
+      pac_x    <= 4'd1;
+      pac_y    <= 4'd1;
       pac_dir  <= 2'd1;
       move_div <= 3'd0;
 
-      ghost_x   <= 3'd6;
-      ghost_y   <= 3'd6;
+      ghost_x   <= 4'd8;
+      ghost_y   <= 4'd8;
       ghost_dir <= 2'd0;
       ghost_div <= 3'd0;
 
       game_over <= 1'b0;
       win       <= 1'b0;
 
-      dots[0] <= 8'b00000000;
-      dots[1] <= 8'b01100110;
-      dots[2] <= 8'b01011010;
-      dots[3] <= 8'b01111110;
-      dots[4] <= 8'b01000010;
-      dots[5] <= 8'b01111110;
-      dots[6] <= 8'b01100110;
-      dots[7] <= 8'b00000000;
+      dots[0] <= 10'b0000000000;
+      dots[1] <= 10'b0110110110;
+      dots[2] <= 10'b0101001010;
+      dots[3] <= 10'b0111111110;
+      dots[4] <= 10'b0100000010;
+      dots[5] <= 10'b0101111010;
+      dots[6] <= 10'b0101001010;
+      dots[7] <= 10'b0110110110;
+      dots[8] <= 10'b0111111110;
+      dots[9] <= 10'b0000000000;
 
     end else if (frame_tick) begin
       if (btn_restart) begin
-        pac_x    <= 3'd1;
-        pac_y    <= 3'd1;
+        pac_x    <= 4'd1;
+        pac_y    <= 4'd1;
         pac_dir  <= 2'd1;
         move_div <= 3'd0;
 
-        ghost_x   <= 3'd6;
-        ghost_y   <= 3'd6;
+        ghost_x   <= 4'd8;
+        ghost_y   <= 4'd8;
         ghost_dir <= 2'd0;
         ghost_div <= 3'd0;
 
         game_over <= 1'b0;
         win       <= 1'b0;
 
-        dots[0] <= 8'b00000000;
-        dots[1] <= 8'b01100110;
-        dots[2] <= 8'b01011010;
-        dots[3] <= 8'b01111110;
-        dots[4] <= 8'b01000010;
-        dots[5] <= 8'b01111110;
-        dots[6] <= 8'b01100110;
-        dots[7] <= 8'b00000000;
+        dots[0] <= 10'b0000000000;
+        dots[1] <= 10'b0110110110;
+        dots[2] <= 10'b0101001010;
+        dots[3] <= 10'b0111111110;
+        dots[4] <= 10'b0100000010;
+        dots[5] <= 10'b0101111010;
+        dots[6] <= 10'b0101001010;
+        dots[7] <= 10'b0110110110;
+        dots[8] <= 10'b0111111110;
+        dots[9] <= 10'b0000000000;
       end else begin
         move_div  <= move_div + 3'd1;
         ghost_div <= ghost_div + 3'd1;
@@ -393,47 +402,95 @@ module tt_um_vga_example(
 
   // ============================================================
   // Pixel -> tile decode
-  // 8x8 tiles, 32x32 each
+  // 10x10 tiles, 25x25 each
   // ============================================================
   wire board_area =
-    (pix_x >= BOARD_X) && (pix_x < (BOARD_X + 10'd256)) &&
-    (pix_y >= BOARD_Y) && (pix_y < (BOARD_Y + 10'd256));
+    (pix_x >= BOARD_X) && (pix_x < (BOARD_X + BOARD_W)) &&
+    (pix_y >= BOARD_Y) && (pix_y < (BOARD_Y + BOARD_H));
 
   wire [9:0] rel_x = pix_x - BOARD_X;
   wire [9:0] rel_y = pix_y - BOARD_Y;
 
-  wire [2:0] tile_x = rel_x[7:5];
-  wire [2:0] tile_y = rel_y[7:5];
+  reg [3:0] tile_x;
+  reg [3:0] tile_y;
+  reg [4:0] cell_x;
+  reg [4:0] cell_y;
 
-  wire [4:0] cell_x = rel_x[4:0];
-  wire [4:0] cell_y = rel_y[4:0];
+  always @(*) begin
+    if (rel_x < 10'd25) begin
+      tile_x = 4'd0; cell_x = rel_x[4:0];
+    end else if (rel_x < 10'd50) begin
+      tile_x = 4'd1; cell_x = rel_x - 10'd25;
+    end else if (rel_x < 10'd75) begin
+      tile_x = 4'd2; cell_x = rel_x - 10'd50;
+    end else if (rel_x < 10'd100) begin
+      tile_x = 4'd3; cell_x = rel_x - 10'd75;
+    end else if (rel_x < 10'd125) begin
+      tile_x = 4'd4; cell_x = rel_x - 10'd100;
+    end else if (rel_x < 10'd150) begin
+      tile_x = 4'd5; cell_x = rel_x - 10'd125;
+    end else if (rel_x < 10'd175) begin
+      tile_x = 4'd6; cell_x = rel_x - 10'd150;
+    end else if (rel_x < 10'd200) begin
+      tile_x = 4'd7; cell_x = rel_x - 10'd175;
+    end else if (rel_x < 10'd225) begin
+      tile_x = 4'd8; cell_x = rel_x - 10'd200;
+    end else begin
+      tile_x = 4'd9; cell_x = rel_x - 10'd225;
+    end
+  end
+
+  always @(*) begin
+    if (rel_y < 10'd25) begin
+      tile_y = 4'd0; cell_y = rel_y[4:0];
+    end else if (rel_y < 10'd50) begin
+      tile_y = 4'd1; cell_y = rel_y - 10'd25;
+    end else if (rel_y < 10'd75) begin
+      tile_y = 4'd2; cell_y = rel_y - 10'd50;
+    end else if (rel_y < 10'd100) begin
+      tile_y = 4'd3; cell_y = rel_y - 10'd75;
+    end else if (rel_y < 10'd125) begin
+      tile_y = 4'd4; cell_y = rel_y - 10'd100;
+    end else if (rel_y < 10'd150) begin
+      tile_y = 4'd5; cell_y = rel_y - 10'd125;
+    end else if (rel_y < 10'd175) begin
+      tile_y = 4'd6; cell_y = rel_y - 10'd150;
+    end else if (rel_y < 10'd200) begin
+      tile_y = 4'd7; cell_y = rel_y - 10'd175;
+    end else if (rel_y < 10'd225) begin
+      tile_y = 4'd8; cell_y = rel_y - 10'd200;
+    end else begin
+      tile_y = 4'd9; cell_y = rel_y - 10'd225;
+    end
+  end
 
   wire tile_wall = wall_at(tile_x, tile_y);
   wire tile_dot  = dot_at(tile_x, tile_y);
 
   // ============================================================
   // Shapes
+  // Simple square sprites kept lightweight
   // ============================================================
   wire pac_on =
     board_area &&
     (tile_x == pac_x) &&
     (tile_y == pac_y) &&
-    (cell_x >= 5'd6)  && (cell_x <= 5'd25) &&
-    (cell_y >= 5'd6)  && (cell_y <= 5'd25);
+    (cell_x >= 5'd5)  && (cell_x <= 5'd19) &&
+    (cell_y >= 5'd5)  && (cell_y <= 5'd19);
 
   wire ghost_on =
     board_area &&
     (tile_x == ghost_x) &&
     (tile_y == ghost_y) &&
-    (cell_x >= 5'd6)  && (cell_x <= 5'd25) &&
-    (cell_y >= 5'd6)  && (cell_y <= 5'd25);
+    (cell_x >= 5'd5)  && (cell_x <= 5'd19) &&
+    (cell_y >= 5'd5)  && (cell_y <= 5'd19);
 
   wire dot_on =
     board_area &&
     !tile_wall &&
     tile_dot &&
-    (cell_x >= 5'd15) && (cell_x <= 5'd16) &&
-    (cell_y >= 5'd15) && (cell_y <= 5'd16);
+    (cell_x >= 5'd11) && (cell_x <= 5'd13) &&
+    (cell_y >= 5'd11) && (cell_y <= 5'd13);
 
   wire wall_on  = board_area && tile_wall;
   wire floor_on = board_area && !tile_wall;
@@ -448,10 +505,8 @@ module tt_um_vga_example(
 
     if (video_active) begin
       if (game_over) begin
-        // ciemnoczerwone tło przy przegranej
         R = 2'b01; G = 2'b00; B = 2'b00;
       end else if (win) begin
-        // ciemnozielone tło przy wygranej
         R = 2'b00; G = 2'b01; B = 2'b00;
       end else if (ghost_on) begin
         R = 2'b11; G = 2'b00; B = 2'b11;
